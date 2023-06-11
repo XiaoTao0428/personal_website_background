@@ -19,8 +19,8 @@ class Base{
     }
 
     // 更改
-    update (id, params){
-        return knex(this.table).where('id', '=', id).update(params);
+    update (where, params){
+        return knex(this.table).where(where).update(params);
     }
 
     // 删除

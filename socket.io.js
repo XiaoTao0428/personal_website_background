@@ -124,20 +124,33 @@ const socket_io = {
             socket.on('APPLY_LEAVE_ROOM', async (anotherSocketId, roomId) => {
                 console.log('申请离开房间时触发', anotherSocketId, roomId)
                 socket.leave(roomId)
-                // new Base('chat_rooms').all({
-                //     room_id: roomId
-                // }).then(databaseRes => {
-                //     if (databaseRes.length > 0) {
-                //         const offer = JSON.parse(databaseRes[0].offer)
-                //         socket.join(roomId)
-                //         socket.emit('APPLY_JOIN_ROOM_SUCCESS', roomId, offer, '申请加入房间成功')
-                //     } else {
-                //         socket.emit('APPLY_JOIN_ROOM_ERROR', roomId, '未找到指定房间')
-                //     }
-                // }).catch(e => {
-                //     socket.emit('APPLY_JOIN_ROOM_ERROR', roomId, e)
-                // })
-                io.to(roomId).emit('LEFT_ROOM', anotherSocketId, roomId, '已离开房间')
+                new Base('chat_rooms').all({
+                    room_id: roomId
+                }).then(databaseRes => {
+                    console.log(databaseRes[0])
+                    if (databaseRes[0].householder === anotherSocketId) {
+                        io.to(roomId).emit('CLOSED_ROOM', anotherSocketId, roomId, '房间已关闭')
+                    } else {
+                        io.to(roomId).emit('LEFT_ROOM', anotherSocketId, roomId, '已离开房间')
+                    }
+                }).catch(e => {
+                    console.error(e)
+                })
+            })
+
+            /**
+             * 离开房间成功时触发
+             * */
+            socket.on('LEFT_ROOM_SUCCESS', async (anotherSocketId, roomId, offer) => {
+                console.log('离开房间成功时触发', anotherSocketId, roomId)
+                new Base('chat_rooms').update({
+                    room_id: roomId
+                }, {
+                    offer: JSON.stringify(offer)
+                }).then(databaseRes => {
+                }).catch(e => {
+                    console.error(e)
+                })
             })
 
             /**
