@@ -73,7 +73,8 @@ const socket_io = {
                     room_id: roomId,
                     creator: anotherSocketId,
                     householder: anotherSocketId,
-                    offer: offer
+                    offer: offer,
+                    member: JSON.stringify([anotherSocketId])
                 }
                 // 需要密码权限的房间设置密码
                 if (data.type === 'private') {
@@ -100,8 +101,18 @@ const socket_io = {
                 }).then(databaseRes => {
                     if (databaseRes.length > 0) {
                         const offer = JSON.parse(databaseRes[0].offer)
-                        socket.join(roomId)
-                        socket.emit('APPLY_JOIN_ROOM_SUCCESS', roomId, offer, '申请加入房间成功')
+                        let member = JSON.parse(databaseRes[0].member)
+                        member.push(anotherSocketId)
+                        new Base('chat_rooms').update({
+                            room_id: roomId
+                        }, {
+                            member: JSON.stringify(member)
+                        }).then(databaseRes2 => {
+                            socket.join(roomId)
+                            socket.emit('APPLY_JOIN_ROOM_SUCCESS', roomId, offer, '申请加入房间成功')
+                        }).catch(e => {
+                            socket.emit('APPLY_JOIN_ROOM_ERROR', roomId, e)
+                        })
                     } else {
                         socket.emit('APPLY_JOIN_ROOM_ERROR', roomId, '未找到指定房间')
                     }
@@ -127,10 +138,33 @@ const socket_io = {
                 new Base('chat_rooms').all({
                     room_id: roomId
                 }).then(databaseRes => {
-                    if (databaseRes.householder === anotherSocketId) {
-                        io.to(roomId).emit('CLOSED_ROOM', anotherSocketId, roomId, '房间已关闭')
+                    let member = JSON.parse(databaseRes[0].member)
+                    if (member.length <= 1) {
+                        console.log('删除房间')
+                        new Base('chat_rooms').delete({
+                            room_id: roomId
+                        }).then(databaseRes2 => {
+                            socket.emit('CLOSED_ROOM', anotherSocketId, roomId, '房间已关闭')
+                        }).catch(e => {
+                            console.error(e)
+                        })
                     } else {
-                        io.to(roomId).emit('LEFT_ROOM', anotherSocketId, roomId, '已离开房间')
+                        console.log('房间还有人')
+                        for (let i = 0, l = member.length; i < l; i ++) {
+                            if (member[i] === anotherSocketId) {
+                                member.splice(i, 1)
+                                break
+                            }
+                        }
+                        new Base('chat_rooms').update({
+                            room_id: roomId
+                        }, {
+                            member: JSON.stringify(member)
+                        }).then(databaseRes2 => {
+                            io.to(roomId).emit('LEFT_ROOM', anotherSocketId, roomId, '已离开房间')
+                        }).catch(e => {
+                            console.error(e)
+                        })
                     }
                 }).catch(e => {
                     console.error(e)
@@ -138,17 +172,17 @@ const socket_io = {
             })
 
             /**
-             * 离开房间成功时触发
+             * 更新房间 offer 与 房主
              * */
-            socket.on('CHANGE_HOUSEHOLDER', async (anotherSocketId, roomId, offer) => {
-                console.log('离开房间成功时触发', anotherSocketId, roomId)
+            socket.on('UPDATE_OFFER', async (anotherSocketId, roomId, offer) => {
+                console.log('更新房间 offer 时触发', anotherSocketId, roomId)
                 new Base('chat_rooms').update({
                     room_id: roomId
                 }, {
                     householder: anotherSocketId,
                     offer: JSON.stringify(offer)
                 }).then(databaseRes => {
-                    socket.emit('CHANGE_HOUSEHOLDER_SUCCESS', anotherSocketId, roomId, '房主已切换')
+                    socket.emit('CHANGED_HOUSEHOLDER', anotherSocketId, roomId, '房主已切换')
                 }).catch(e => {
                     console.error(e)
                 })
@@ -174,10 +208,10 @@ const socket_io = {
 
         // 连接失败
         io.engine.on("connection_error", (err) => {
-            console.log(err.req);      // the request object
-            console.log(err.code);     // the error code, for example 1
-            console.log(err.message);  // the error message, for example "Session ID unknown"
-            console.log(err.context);  // some additional error context
+            console.error(err.req)      // the request object
+            console.error(err.code)     // the error code, for example 1
+            console.error(err.message)  // the error message, for example "Session ID unknown"
+            console.error(err.context)  // some additional error context
         })
     }
 };

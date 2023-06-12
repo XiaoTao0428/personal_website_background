@@ -24,8 +24,8 @@ class Base{
     }
 
     // 删除
-    delete (id){
-        return knex(this.table).where('id', '=', id).del();
+    delete (where){
+        return knex(this.table).where(where).del();
     }
 }
 
