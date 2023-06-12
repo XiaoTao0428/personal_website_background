@@ -67,7 +67,7 @@ const socket_io = {
                 if (!roomId) {
                     return
                 }
-                console.log('创建房间', anotherSocketId, roomId, offer)
+                console.log('创建房间', anotherSocketId, roomId)
 
                 let params = {
                     room_id: roomId,
@@ -127,8 +127,7 @@ const socket_io = {
                 new Base('chat_rooms').all({
                     room_id: roomId
                 }).then(databaseRes => {
-                    console.log(databaseRes[0])
-                    if (databaseRes[0].householder === anotherSocketId) {
+                    if (databaseRes.householder === anotherSocketId) {
                         io.to(roomId).emit('CLOSED_ROOM', anotherSocketId, roomId, '房间已关闭')
                     } else {
                         io.to(roomId).emit('LEFT_ROOM', anotherSocketId, roomId, '已离开房间')
@@ -141,13 +140,15 @@ const socket_io = {
             /**
              * 离开房间成功时触发
              * */
-            socket.on('LEFT_ROOM_SUCCESS', async (anotherSocketId, roomId, offer) => {
+            socket.on('CHANGE_HOUSEHOLDER', async (anotherSocketId, roomId, offer) => {
                 console.log('离开房间成功时触发', anotherSocketId, roomId)
                 new Base('chat_rooms').update({
                     room_id: roomId
                 }, {
+                    householder: anotherSocketId,
                     offer: JSON.stringify(offer)
                 }).then(databaseRes => {
+                    socket.emit('CHANGE_HOUSEHOLDER_SUCCESS', anotherSocketId, roomId, '房主已切换')
                 }).catch(e => {
                     console.error(e)
                 })
